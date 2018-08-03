@@ -29,10 +29,22 @@ unset LC_ALL
 unset LANG
 PATH=${PATH}:/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin
 
-if [ $( uname -r | cut -d '-' -f1 | cut -d '.' -f1 ) -lt 8 ]
+if [ $( uname ) == "Linux" ]
 then
-  echo "ERROR: beadm works on FreeBSD 8.0 or later"
-  exit 1
+  if find /lib/modules/$(uname -r)/ -name 'zfs.ko*' -exec false {} +
+  then
+    echo "ERROR: ZFS modules not found"
+    exit 1
+  fi
+  datecmd='date --date'
+elif [ $( uname ) == "FreeBSD" ]
+then
+  if [ $( uname -r | cut -d '-' -f1 | cut -d '.' -f1 ) -lt 8 ]
+  then
+    echo "ERROR: beadm works on FreeBSD 8.0 or later"
+    exit 1
+  fi
+  datecmd='date -j -f "%a %b %d %H:%M %Y"'
 fi
 
 if [ "${1}" = "--version" -o "${1}" = "-version" -o "${1}" = "version" ]
@@ -182,7 +194,7 @@ __be_new() { # 1=SOURCE 2=TARGET
       exit 1
     fi
     # snapshot format
-    FMT=$( date "+%Y-%m-%d-%H:%M:%S" )
+    FMT=$( $datecmd )
     if ! zfs snapshot -r ${1}@${FMT} 1> /dev/null 2> /dev/null
     then
       echo "ERROR: Cannot create snapshot '${1}@${FMT}'"
@@ -321,7 +333,7 @@ case ${1} in
         return BENAME
       }
       function __convert_date(DATE) {
-        CMD_DATE = "date -j -f \"%a %b %d %H:%M %Y\" \"" DATE "\" +\"%Y-%m-%d %H:%M\""
+        CMD_DATE = "'"$(echo $datecmd|sed 's/\"/\\\"/g')"'\"" DATE "\" +\"%Y-%m-%d %H:%M\""
         CMD_DATE | getline NEW
         close(CMD_DATE)
         return NEW
